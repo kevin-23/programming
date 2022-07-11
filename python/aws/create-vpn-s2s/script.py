@@ -53,9 +53,7 @@ def vpnConnection(nameVPN, staticRoutes):
         CustomerGatewayId=customerGWId,
         Type='ipsec.1',
         VpnGatewayId='vgw-0cf5449a328cd3e40',
-        Options={
-            'StaticRoutesOnly': True,
-        },
+        Options={'StaticRoutesOnly': True},
         TagSpecifications=[
             {
                 'ResourceType': 'vpn-connection',
@@ -83,17 +81,19 @@ def vpnConnection(nameVPN, staticRoutes):
     )
 
     print('Creating VPN S2S... Please wait a few minutes.')
-    time.sleep(300)
+    vpnStateValidation()
 
     print('Modifying the tunnels...')
     modifyTunnels(tunnel1)
-    time.sleep(210)
+    vpnStateValidation()
     modifyTunnels(tunnel2)
 
     print('Creating CloudWatch alarms...')
     cwAlarm(tunnel1, '1')
     cwAlarm(tunnel2, '2')
 
+
+# This functions modify the VPN tunnels
 def modifyTunnels(tunnel):
 
     # Tunnel Options
@@ -130,9 +130,7 @@ def cwAlarm(ipTunnel, noTunnel):
         AlarmName=f'VOZY-VPN-{nameVPN}-Tunnel {noTunnel}',
         AlarmDescription=f'VOZY-VPN-{nameVPN}-Tunnel {noTunnel}',
         ActionsEnabled=True,
-        OKActions=[
-            'arn:aws:sns:us-east-1:420213966676:kevin_CW_Labs_Topic',
-        ],
+        OKActions=['arn:aws:sns:us-east-1:420213966676:kevin_CW_Labs_Topic'],
         AlarmActions=[
             'arn:aws:sns:us-east-1:420213966676:kevin_CW_Labs_Topic',
             'arn:aws:sns:us-east-1:420213966676:sns-test-kevin'
@@ -154,12 +152,30 @@ def cwAlarm(ipTunnel, noTunnel):
         TreatMissingData='missing'
     )
 
+# Check vpn status
+def vpnStateValidation():
+
+    vpnState = False
+
+    # Describe the VPN connection and get the state
+    while vpnState != True:
+        client = boto3.client('ec2')
+        response = client.describe_vpn_connections(
+            VpnConnectionIds=[vpnId],
+        )
+
+        if response['VpnConnections'][0]['State'] == 'available':
+            vpnState = True
+        else:
+            time.sleep(40)
+
 
 # Call cgw function to create CGW and VPN S2S
 cgw(ipCGW, nameCGW)
 
 # Print the results
-print(f'\nVPN S2S successfully created, relevant values:\nTunnel 1: {tunnel1}\
+print(f'\n~~~ VPN S2S successfully created, relevant values: ~~~\n\
+    \nTunnel 1: {tunnel1}\
     \nTunnel 2: {tunnel2}\
     \nPSK 1: {psk1}\
     \nPSK 2: {psk2}\

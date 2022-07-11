@@ -10,27 +10,6 @@ nameVPN = input(str('\n~~~ VPN S2S parameters ~~~\nEnter VPN Name: '))
 staticRoutes = input(str(
     'Enter a Static Route IPv4. The CIDR block associated with the local subnet of the customer network: '))
 
-# Keys variables
-customerGWId = ''
-vpnId = ''
-tunnel1 = ''
-tunnel2 = ''
-psk1 = ''
-psk2 = ''
-tunnelsOptions = {
-    'Phase1LifetimeSeconds': 28800,
-    'Phase2LifetimeSeconds': 3600,
-    'DPDTimeoutAction': 'clear',
-    'StartupAction': 'add',
-    'Phase1EncryptionAlgorithms': [{'Value': 'AES256'}],
-    'Phase2EncryptionAlgorithms': [{'Value': 'AES256'}],
-    'Phase1IntegrityAlgorithms': [{'Value': 'SHA1'}],
-    'Phase2IntegrityAlgorithms': [{'Value': 'SHA1'}],
-    'Phase1DHGroupNumbers': [{'Value': 2}],
-    'Phase2DHGroupNumbers': [{'Value': 2}],
-    'IKEVersions': [{'Value': 'ikev1'}]
-}
-
 # This function creates a customer gateway
 def cgw(ipCGW, nameCGW):
 
@@ -106,20 +85,73 @@ def vpnConnection(nameVPN, staticRoutes):
     print('Creating VPN S2S... Please wait a few minutes.')
     time.sleep(300)
 
-    # Modify the tunnel optoons
-    print('Modifying the tunnels.')
+    print('Modifying the tunnels...')
+    modifyTunnels(tunnel1)
+    time.sleep(210)
+    modifyTunnels(tunnel2)
+
+    print('Creating CloudWatch alarms...')
+    cwAlarm(tunnel1, '1')
+    cwAlarm(tunnel2, '2')
+
+def modifyTunnels(tunnel):
+
+    # Tunnel Options
+    tunnelsOptions = {
+        'Phase1LifetimeSeconds': 28800,
+        'Phase2LifetimeSeconds': 3600,
+        'DPDTimeoutAction': 'clear',
+        'StartupAction': 'add',
+        'Phase1EncryptionAlgorithms': [{'Value': 'AES256'}],
+        'Phase2EncryptionAlgorithms': [{'Value': 'AES256'}],
+        'Phase1IntegrityAlgorithms': [{'Value': 'SHA1'}],
+        'Phase2IntegrityAlgorithms': [{'Value': 'SHA1'}],
+        'Phase1DHGroupNumbers': [{'Value': 2}],
+        'Phase2DHGroupNumbers': [{'Value': 2}],
+        'IKEVersions': [{'Value': 'ikev1'}]
+    }
+
+    client = boto3.client('ec2')
+
+    # Modify the tunnel options
     client.modify_vpn_tunnel_options(
         VpnConnectionId=vpnId,
-        VpnTunnelOutsideIpAddress=tunnel1,
+        VpnTunnelOutsideIpAddress=tunnel,
         TunnelOptions=tunnelsOptions
     )
-    
-    time.sleep(210)
 
-    client.modify_vpn_tunnel_options(
-        VpnConnectionId=vpnId,
-        VpnTunnelOutsideIpAddress=tunnel2,
-        TunnelOptions=tunnelsOptions
+# Creating Cloudwatch alarms for tunnels
+def cwAlarm(ipTunnel, noTunnel):
+
+    client = boto3.client('cloudwatch')
+
+    # Alarm Options
+    client.put_metric_alarm(
+        AlarmName=f'VOZY-VPN-{nameVPN}-Tunnel {noTunnel}',
+        AlarmDescription=f'VOZY-VPN-{nameVPN}-Tunnel {noTunnel}',
+        ActionsEnabled=True,
+        OKActions=[
+            'arn:aws:sns:us-east-1:420213966676:kevin_CW_Labs_Topic',
+        ],
+        AlarmActions=[
+            'arn:aws:sns:us-east-1:420213966676:kevin_CW_Labs_Topic',
+            'arn:aws:sns:us-east-1:420213966676:sns-test-kevin'
+        ],
+        MetricName='TunnelState',
+        Namespace='AWS/VPN',
+        Statistic='Average',
+        Dimensions=[
+            {
+                'Name': 'TunnelIpAddress',
+                'Value': ipTunnel
+            },
+        ],
+        Period=300,
+        EvaluationPeriods=1,
+        DatapointsToAlarm=1,
+        Threshold=0,
+        ComparisonOperator='LessThanOrEqualToThreshold',
+        TreatMissingData='missing'
     )
 
 

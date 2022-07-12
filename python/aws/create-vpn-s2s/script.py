@@ -54,7 +54,7 @@ def vpnConnection(nameVPN, staticRoutes):
     response = client.create_vpn_connection(
         CustomerGatewayId=customerGWId,
         Type="ipsec.1",
-        VpnGatewayId="vgw-0cf5449a328cd3e40",
+        VpnGatewayId="vgw-01de3c706bedb0f42",
         Options={"StaticRoutesOnly": True},
         TagSpecifications=[
             {
@@ -83,9 +83,13 @@ def vpnConnection(nameVPN, staticRoutes):
     print("Creating VPN S2S... Please wait a few minutes.")
     vpnStateValidation()
 
-    print("Modifying the tunnels...")
+    print(
+        "\n~~~ VPN S2S Tunnel Options: https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNTunnels.html ~~~\n\
+\nModifying Tunnel 1..."
+    )
     modifyTunnels(tunnel1)
     vpnStateValidation()
+    print("\nModifying Tunnel 2...")
     modifyTunnels(tunnel2)
 
     print("Creating CloudWatch alarms...")
@@ -96,19 +100,70 @@ def vpnConnection(nameVPN, staticRoutes):
 # This functions modify the VPN tunnels
 def modifyTunnels(tunnel):
 
+    Phase1Encryption = []
+    Phase2Encryption = []
+    Phase1Integrity = []
+    Phase2Integrity = []
+    Phase1DH = []
+    Phase2DH = []
+    IKEv = []
+
+    Phase1Lifetime = int(
+        input("The lifetime for phase 1 of the IKE negotiation, in seconds: ")
+    )
+    Phase2Lifetime = int(
+        input("The lifetime for phase 2 of the IKE negotiation, in seconds: ")
+    )
+    Phase1EncryptionAlgorithms = str(
+        input("Phase 1 encryption algorithms (Delimit by comma): ")
+    )
+    Phase2EncryptionAlgorithms = str(
+        input("Phase 2 encryption algorithms (Delimit by comma): ")
+    )
+    Phase1IntegrityAlgorithms = str(
+        input("Phase 1 integrity algorithms (Delimit by comma): ")
+    )
+    Phase2IntegrityAlgorithms = str(
+        input("Phase 2 integrity algorithms (Delimit by comma): ")
+    )
+    Phase1DHGroupNumbers = str(input("Phase 1 DH group numbers (Delimit by comma): "))
+    Phase2DHGroupNumbers = str(input("Phase 2 DH group numbers (Delimit by comma): "))
+    IKEVersions = str(input("IKE versions (Delimit by comma): "))
+
+    for a in Phase1DHGroupNumbers.rsplit(","):
+        Phase1DH.append({"Value": int(a)})
+
+    for b in Phase2DHGroupNumbers.rsplit(","):
+        Phase2DH.append({"Value": int(b)})
+
+    for c in Phase1EncryptionAlgorithms.rsplit(","):
+        Phase1Encryption.append({"Value": c.replace(" ", "")})
+
+    for d in Phase2EncryptionAlgorithms.rsplit(","):
+        Phase2Encryption.append({"Value": d.replace(" ", "")})
+
+    for e in Phase1IntegrityAlgorithms.rsplit(","):
+        Phase1Integrity.append({"Value": e.replace(" ", "")})
+
+    for f in Phase2IntegrityAlgorithms.rsplit(","):
+        Phase2Integrity.append({"Value": f.replace(" ", "")})
+
+    for g in IKEVersions.rsplit(","):
+        IKEv.append({"Value": g.replace(" ", "")})
+
     # Tunnel Options
     tunnelsOptions = {
-        "Phase1LifetimeSeconds": 28800,
-        "Phase2LifetimeSeconds": 3600,
+        "Phase1LifetimeSeconds": Phase1Lifetime,
+        "Phase2LifetimeSeconds": Phase2Lifetime,
         "DPDTimeoutAction": "clear",
         "StartupAction": "add",
-        "Phase1EncryptionAlgorithms": [{"Value": "AES256"}],
-        "Phase2EncryptionAlgorithms": [{"Value": "AES256"}],
-        "Phase1IntegrityAlgorithms": [{"Value": "SHA1"}],
-        "Phase2IntegrityAlgorithms": [{"Value": "SHA1"}],
-        "Phase1DHGroupNumbers": [{"Value": 2}],
-        "Phase2DHGroupNumbers": [{"Value": 2}],
-        "IKEVersions": [{"Value": "ikev1"}],
+        "Phase1EncryptionAlgorithms": Phase1Encryption,
+        "Phase2EncryptionAlgorithms": Phase2Encryption,
+        "Phase1IntegrityAlgorithms": Phase1Integrity,
+        "Phase2IntegrityAlgorithms": Phase2Integrity,
+        "Phase1DHGroupNumbers": Phase1DH,
+        "Phase2DHGroupNumbers": Phase2DH,
+        "IKEVersions": IKEv,
     }
 
     client = boto3.client("ec2")
@@ -131,10 +186,10 @@ def cwAlarm(ipTunnel, noTunnel):
         AlarmName=f"VOZY-VPN-{nameVPN}-Tunnel {noTunnel}",
         AlarmDescription=f"VOZY-VPN-{nameVPN}-Tunnel {noTunnel}",
         ActionsEnabled=True,
-        OKActions=["arn:aws:sns:us-east-1:420213966676:kevin_CW_Labs_Topic"],
+        OKActions=["arn:aws:sns:us-east-1:808378037958:VPN_OK"],
         AlarmActions=[
-            "arn:aws:sns:us-east-1:420213966676:kevin_CW_Labs_Topic",
-            "arn:aws:sns:us-east-1:420213966676:sns-test-kevin",
+            "arn:aws:sns:us-east-1:808378037958:VPN_Alarm",
+            "arn:aws:sns:us-east-1:808378037958:Slack_infra_Vozy_Alarm",
         ],
         MetricName="TunnelState",
         Namespace="AWS/VPN",

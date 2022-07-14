@@ -10,7 +10,7 @@ ipCGW = input(str("Enter Customer Gateway IPv4: "))
 nameVPN = input(str("\n~~~ VPN S2S parameters ~~~\nEnter VPN Name: "))
 staticRoutes = input(
     str(
-        "Enter a Static Route IPv4. The CIDR block associated with the local subnet of the customer network: "
+        "Enter Static Routes IPv4 (Delimit by comma). The CIDR block associated with the local subnet of the customer network: "
     )
 )
 
@@ -54,7 +54,7 @@ def vpnConnection(nameVPN, staticRoutes):
     response = client.create_vpn_connection(
         CustomerGatewayId=customerGWId,
         Type="ipsec.1",
-        VpnGatewayId="vgw-01de3c706bedb0f42",
+        VpnGatewayId="vgw-08b492371f82de8b2",
         Options={"StaticRoutesOnly": True},
         TagSpecifications=[
             {
@@ -76,9 +76,11 @@ def vpnConnection(nameVPN, staticRoutes):
     psk2 = response["VpnConnection"]["Options"]["TunnelOptions"][1]["PreSharedKey"]
 
     # Modify the static rotues
-    client.create_vpn_connection_route(
-        DestinationCidrBlock=staticRoutes, VpnConnectionId=vpnId
-    )
+    for routes in staticRoutes.rsplit(","):
+        client.create_vpn_connection_route(
+            DestinationCidrBlock=routes.replace(" ", ""), VpnConnectionId=vpnId
+        )
+        time.sleep(2)
 
     print("Creating VPN S2S... Please wait a few minutes.")
     vpnStateValidation()
@@ -87,26 +89,48 @@ def vpnConnection(nameVPN, staticRoutes):
         "\n~~~ VPN S2S Tunnel Options: https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNTunnels.html ~~~\n\
 \nModifying Tunnel 1..."
     )
-    modifyTunnels(tunnel1)
+
+    tunnelsParameters()
+    modifyTunnel(tunnel1)
     vpnStateValidation()
-    print("\nModifying Tunnel 2...")
-    modifyTunnels(tunnel2)
+
+    sameParameters = input(
+        str(
+            "\nDo you want to use the same configuration of tunnel 1 for tunnel 2? y/N: "
+        )
+    ).lower()
+    if sameParameters == "y" or sameParameters == "yes":
+        print("\nModifying Tunnel 2...")
+        modifyTunnel(tunnel2)
+    else:
+        tunnelsParameters()
+        modifyTunnel(tunnel2)
 
     print("Creating CloudWatch alarms...")
     cwAlarm(tunnel1, "1")
     cwAlarm(tunnel2, "2")
 
 
-# This functions modify the VPN tunnels
-def modifyTunnels(tunnel):
+Phase1Encryption = []
+Phase2Encryption = []
+Phase1Integrity = []
+Phase2Integrity = []
+Phase1DH = []
+Phase2DH = []
+IKEv = []
 
-    Phase1Encryption = []
-    Phase2Encryption = []
-    Phase1Integrity = []
-    Phase2Integrity = []
-    Phase1DH = []
-    Phase2DH = []
-    IKEv = []
+# This functions modify the VPN tunnels
+def tunnelsParameters():
+
+    Phase1Encryption.clear()
+    Phase2Encryption.clear()
+    Phase1Integrity.clear()
+    Phase2Integrity.clear()
+    Phase1DH.clear()
+    Phase2DH.clear()
+    IKEv.clear()
+
+    global Phase1Lifetime, Phase2Lifetime
 
     Phase1Lifetime = int(
         input("The lifetime for phase 1 of the IKE negotiation, in seconds: ")
@@ -115,20 +139,20 @@ def modifyTunnels(tunnel):
         input("The lifetime for phase 2 of the IKE negotiation, in seconds: ")
     )
     Phase1EncryptionAlgorithms = str(
-        input("Phase 1 encryption algorithms (Delimit by comma): ")
+        input("Phase 1 encryption algorithms (Delimit by comma): ").upper()
     )
     Phase2EncryptionAlgorithms = str(
-        input("Phase 2 encryption algorithms (Delimit by comma): ")
+        input("Phase 2 encryption algorithms (Delimit by comma): ").upper()
     )
     Phase1IntegrityAlgorithms = str(
-        input("Phase 1 integrity algorithms (Delimit by comma): ")
+        input("Phase 1 integrity algorithms (Delimit by comma): ").upper()
     )
     Phase2IntegrityAlgorithms = str(
-        input("Phase 2 integrity algorithms (Delimit by comma): ")
+        input("Phase 2 integrity algorithms (Delimit by comma): ").upper()
     )
     Phase1DHGroupNumbers = str(input("Phase 1 DH group numbers (Delimit by comma): "))
     Phase2DHGroupNumbers = str(input("Phase 2 DH group numbers (Delimit by comma): "))
-    IKEVersions = str(input("IKE versions (Delimit by comma): "))
+    IKEVersions = str(input("IKE versions (Delimit by comma): ")).lower()
 
     for a in Phase1DHGroupNumbers.rsplit(","):
         Phase1DH.append({"Value": int(a)})
@@ -151,6 +175,8 @@ def modifyTunnels(tunnel):
     for g in IKEVersions.rsplit(","):
         IKEv.append({"Value": g.replace(" ", "")})
 
+
+def modifyTunnel(tunnel):
     # Tunnel Options
     tunnelsOptions = {
         "Phase1LifetimeSeconds": Phase1Lifetime,

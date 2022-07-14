@@ -1,8 +1,0 @@
-{
-    "Version": "2012-10-17",
-    "Statement": {
-        "Effect": "Allow",
-        "Action": "autoscaling:UpdateAutoScalingGroup",
-        "Resource": "arn:aws:autoscaling:us-east-1:420213966676:autoScalingGroup:e0f6606f-e6b0-4a81-9bfe-ebd5c646bd71:autoScalingGroupName/kevin-asg"
-    }
-}

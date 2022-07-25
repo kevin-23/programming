@@ -3,16 +3,14 @@ import time
 
 # Enter parameters
 nameCGW = input(
-    str("~~~ Customer Gataway parameters ~~~\nEnter Customer Gateway Name: ")
-)
+    str("~~~ Customer Gataway parameters ~~~\nEnter Customer Gateway Name: "))
 ipCGW = input(str("Enter Customer Gateway IPv4: "))
 
 nameVPN = input(str("\n~~~ VPN S2S parameters ~~~\nEnter VPN Name: "))
 staticRoutes = input(
-    str(
-        "Enter Static Routes IPv4 (Delimit by comma). The CIDR block associated with the local subnet of the customer network: "
-    )
-)
+    str("Enter Static Routes IPv4 (Delimit by comma). The CIDR block associated with the local subnet of the customer network: "
+        ))
+
 
 # This function creates a customer gateway
 def cgw(ipCGW, nameCGW):
@@ -30,7 +28,10 @@ def cgw(ipCGW, nameCGW):
             {
                 "ResourceType": "customer-gateway",
                 "Tags": [
-                    {"Key": "Name", "Value": nameCGW},
+                    {
+                        "Key": "Name",
+                        "Value": nameCGW
+                    },
                 ],
             },
         ],
@@ -54,51 +55,57 @@ def vpnConnection(nameVPN, staticRoutes):
     response = client.create_vpn_connection(
         CustomerGatewayId=customerGWId,
         Type="ipsec.1",
-        VpnGatewayId="vgw-08b492371f82de8b2",
+        VpnGatewayId="vgw-01d72719e759ef0e0",
         Options={"StaticRoutesOnly": True},
-        TagSpecifications=[
-            {
-                "ResourceType": "vpn-connection",
-                "Tags": [{"Key": "Name", "Value": nameVPN}],
-            }
-        ],
+        TagSpecifications=[{
+            "ResourceType": "vpn-connection",
+            "Tags": [{
+                "Key": "Name",
+                "Value": nameVPN
+            }],
+        }],
     )
 
     # Get VPN id, outside ip address and psk
     vpnId = response["VpnConnection"]["VpnConnectionId"]
     tunnel1 = response["VpnConnection"]["Options"]["TunnelOptions"][0][
-        "OutsideIpAddress"
-    ]
+        "OutsideIpAddress"]
     tunnel2 = response["VpnConnection"]["Options"]["TunnelOptions"][1][
-        "OutsideIpAddress"
-    ]
-    psk1 = response["VpnConnection"]["Options"]["TunnelOptions"][0]["PreSharedKey"]
-    psk2 = response["VpnConnection"]["Options"]["TunnelOptions"][1]["PreSharedKey"]
+        "OutsideIpAddress"]
+    psk1 = response["VpnConnection"]["Options"]["TunnelOptions"][0][
+        "PreSharedKey"]
+    psk2 = response["VpnConnection"]["Options"]["TunnelOptions"][1][
+        "PreSharedKey"]
 
     # Modify the static rotues
     for routes in staticRoutes.rsplit(","):
-        client.create_vpn_connection_route(
-            DestinationCidrBlock=routes.replace(" ", ""), VpnConnectionId=vpnId
-        )
+        client.create_vpn_connection_route(DestinationCidrBlock=routes.replace(
+            " ", ""),
+            VpnConnectionId=vpnId)
         time.sleep(2)
 
     print("Creating VPN S2S... Please wait a few minutes.")
     vpnStateValidation()
 
-    print(
-        "\n~~~ VPN S2S Tunnel Options: https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNTunnels.html ~~~\n\
-\nModifying Tunnel 1..."
-    )
+    print("\n~~~ VPN S2S Tunnel Options: ~~~\
+\nPhase 1 Lifetime: Specify a number between 900 and 28800\n\
+Phase 2 lifetime: Specify a number between 900 and 3600\n\
+Phase 1 encryption, multiple options available: AES128, AES256, AES128-GCM-16, AES256-GCM-16\n\
+Phase 2 encryption, multiple options available: AES128, AES256, AES128-GCM-16, AES256-GCM-16\n\
+Phase 1 integrity, multiple options available: SHA1, SHA2-256, SHA2-384, SHA2-512\n\
+Phase 2 integrity, multiple options available: SHA1, SHA2-256, SHA2-384, SHA2-512\n\
+Phase 1 DH group numbers, multiple options available: 2, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24\n\
+Phase 2 DH group numbers, multiple options available: 2, 5, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24\n\
+IKE versions, multiple options available: IKEV1, IKEV2")
 
     tunnelsParameters()
+    print("\nModifying Tunnel 1...")
     modifyTunnel(tunnel1)
     vpnStateValidation()
 
     sameParameters = input(
-        str(
-            "\nDo you want to use the same configuration of tunnel 1 for tunnel 2? y/N: "
-        )
-    ).lower()
+        str("\nDo you want to use the same configuration of tunnel 1 for tunnel 2? y/N: "
+            )).lower()
     if sameParameters == "y" or sameParameters == "yes":
         print("\nModifying Tunnel 2...")
         modifyTunnel(tunnel2)
@@ -119,6 +126,7 @@ Phase1DH = []
 Phase2DH = []
 IKEv = []
 
+
 # This functions modify the VPN tunnels
 def tunnelsParameters():
 
@@ -133,25 +141,21 @@ def tunnelsParameters():
     global Phase1Lifetime, Phase2Lifetime
 
     Phase1Lifetime = int(
-        input("The lifetime for phase 1 of the IKE negotiation, in seconds: ")
-    )
+        input("Type the lifetime for phase 1 of the IKE negotiation, in seconds: "))
     Phase2Lifetime = int(
-        input("The lifetime for phase 2 of the IKE negotiation, in seconds: ")
-    )
+        input("Type the lifetime for phase 2 of the IKE negotiation, in seconds: "))
     Phase1EncryptionAlgorithms = str(
-        input("Phase 1 encryption algorithms (Delimit by comma): ").upper()
-    )
+        input("Type the phase 1 encryption algorithms (Delimit by comma): ").upper())
     Phase2EncryptionAlgorithms = str(
-        input("Phase 2 encryption algorithms (Delimit by comma): ").upper()
-    )
+        input("Type the phase 2 encryption algorithms (Delimit by comma): ").upper())
     Phase1IntegrityAlgorithms = str(
-        input("Phase 1 integrity algorithms (Delimit by comma): ").upper()
-    )
+        input("Type the phase 1 integrity algorithms (Delimit by comma): ").upper())
     Phase2IntegrityAlgorithms = str(
-        input("Phase 2 integrity algorithms (Delimit by comma): ").upper()
-    )
-    Phase1DHGroupNumbers = str(input("Phase 1 DH group numbers (Delimit by comma): "))
-    Phase2DHGroupNumbers = str(input("Phase 2 DH group numbers (Delimit by comma): "))
+        input("Type the phase 2 integrity algorithms (Delimit by comma): ").upper())
+    Phase1DHGroupNumbers = str(
+        input("Type the phase 1 DH group numbers (Delimit by comma): "))
+    Phase2DHGroupNumbers = str(
+        input("Type the phase 2 DH group numbers (Delimit by comma): "))
     IKEVersions = str(input("IKE versions (Delimit by comma): ")).lower()
 
     for a in Phase1DHGroupNumbers.rsplit(","):
@@ -221,7 +225,10 @@ def cwAlarm(ipTunnel, noTunnel):
         Namespace="AWS/VPN",
         Statistic="Average",
         Dimensions=[
-            {"Name": "TunnelIpAddress", "Value": ipTunnel},
+            {
+                "Name": "TunnelIpAddress",
+                "Value": ipTunnel
+            },
         ],
         Period=300,
         EvaluationPeriods=1,
@@ -240,9 +247,7 @@ def vpnStateValidation():
     # Describe the VPN connection and get the state
     while vpnState != True:
         client = boto3.client("ec2")
-        response = client.describe_vpn_connections(
-            VpnConnectionIds=[vpnId],
-        )
+        response = client.describe_vpn_connections(VpnConnectionIds=[vpnId], )
 
         if response["VpnConnections"][0]["State"] == "available":
             vpnState = True
@@ -254,12 +259,10 @@ def vpnStateValidation():
 cgw(ipCGW, nameCGW)
 
 # Print the results
-print(
-    f"\n~~~ VPN S2S successfully created, relevant values: ~~~\n\
+print(f"\n~~~ VPN S2S successfully created, relevant values: ~~~\n\
     \nTunnel 1: {tunnel1}\
     \nTunnel 2: {tunnel2}\
     \nPSK 1: {psk1}\
     \nPSK 2: {psk2}\
     \nPerfect Forward Secrecy: Yes\
-    \nDiffie-Hellman Group (DH): 2"
-)
+    \nDiffie-Hellman Group (DH): 2")

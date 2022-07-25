@@ -1,8 +1,8 @@
 import boto3
 
 client = boto3.client('efs')
-fs = 'fs-0b13c3d1e2f948138'
-newMB = float(20)
+fs = 'fs-0be0dacecc7e251d5'
+newMB = float(15)
 
 def decreaseMBProvisioned():
 
@@ -11,7 +11,7 @@ def decreaseMBProvisioned():
 
     MBProvisioned = response['FileSystems'][0]['ProvisionedThroughputInMibps']
 
-    if int(MBProvisioned) >= 21:
+    if int(MBProvisioned) >= 19:
         response2 = client.update_file_system(
             FileSystemId = fs,
             ProvisionedThroughputInMibps = newMB)

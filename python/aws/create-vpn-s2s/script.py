@@ -1,5 +1,6 @@
 import boto3
 import time
+import sys
 
 # Enter parameters
 nameCGW = input(
@@ -20,22 +21,27 @@ def cgw(ipCGW, nameCGW):
     client = boto3.client("ec2")
 
     # Customer Gateway Options
-    response = client.create_customer_gateway(
-        BgpAsn=65000,
-        Type="ipsec.1",
-        IpAddress=ipCGW,
-        TagSpecifications=[
-            {
-                "ResourceType": "customer-gateway",
-                "Tags": [
-                    {
-                        "Key": "Name",
-                        "Value": nameCGW
-                    },
-                ],
-            },
-        ],
-    )
+    try:
+        response = client.create_customer_gateway(
+            BgpAsn=65000,
+            Type="ipsec.1",
+            IpAddress=ipCGW,
+            TagSpecifications=[
+                {
+                    "ResourceType": "customer-gateway",
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": nameCGW
+                        },
+                    ],
+                },
+            ],
+        )
+    except:
+        sys.exit(
+            "\n!!! Error when creating the Customer Gateway. Unable to continue with the creation of the S2S VPN !!!"
+        )
 
     customerGWId = response["CustomerGateway"]["CustomerGatewayId"]
     print("\nCreating Customer Gateway...")
@@ -52,20 +58,24 @@ def vpnConnection(nameVPN, staticRoutes):
     client = boto3.client("ec2")
 
     # VPN S2S Options
-    response = client.create_vpn_connection(
-        CustomerGatewayId=customerGWId,
-        Type="ipsec.1",
-        VpnGatewayId="vgw-01d72719e759ef0e0",
-        Options={"StaticRoutesOnly": True},
-        TagSpecifications=[{
-            "ResourceType": "vpn-connection",
-            "Tags": [{
-                "Key": "Name",
-                "Value": nameVPN
+    try:
+        response = client.create_vpn_connection(
+            CustomerGatewayId=customerGWId,
+            Type="ipsec.1",
+            VpnGatewayId="vgw-002e9bcfe5ece2203",
+            Options={"StaticRoutesOnly": True},
+            TagSpecifications=[{
+                "ResourceType": "vpn-connection",
+                "Tags": [{
+                    "Key": "Name",
+                    "Value": nameVPN
+                }],
             }],
-        }],
-    )
-
+        )
+    except:
+        sys.exit(
+            "\n!!! Error when creating the VPN S2S. Unable to continue with the creation of the S2S VPN !!!"
+        )
     # Get VPN id, outside ip address and psk
     vpnId = response["VpnConnection"]["VpnConnectionId"]
     tunnel1 = response["VpnConnection"]["Options"]["TunnelOptions"][0][
@@ -78,16 +88,23 @@ def vpnConnection(nameVPN, staticRoutes):
         "PreSharedKey"]
 
     # Modify the static rotues
-    for routes in staticRoutes.rsplit(","):
-        client.create_vpn_connection_route(DestinationCidrBlock=routes.replace(
-            " ", ""),
-            VpnConnectionId=vpnId)
-        time.sleep(2)
+    staticRT = ''.replace(" ", "")
+    try:
+        for routes in staticRoutes.rsplit(","):
+            staticRT = routes
+            client.create_vpn_connection_route(DestinationCidrBlock=routes.replace(
+                " ", ""),
+                VpnConnectionId=vpnId)
+            time.sleep(2)
+    except:
+        print(
+            f"\n!!! {staticRT} is a wrong static route. The configuration of static routes is stopped !!!"
+        )n t
 
     print("Creating VPN S2S... Please wait a few minutes.")
     vpnStateValidation()
 
-    print("\n~~~ VPN S2S Tunnel Options: ~~~\
+    print("\n~~~ S2S VPN tunnel options available: ~~~\
 \nPhase 1 Lifetime: Specify a number between 900 and 28800\n\
 Phase 2 lifetime: Specify a number between 900 and 3600\n\
 Phase 1 encryption, multiple options available: AES128, AES256, AES128-GCM-16, AES256-GCM-16\n\
@@ -96,22 +113,27 @@ Phase 1 integrity, multiple options available: SHA1, SHA2-256, SHA2-384, SHA2-51
 Phase 2 integrity, multiple options available: SHA1, SHA2-256, SHA2-384, SHA2-512\n\
 Phase 1 DH group numbers, multiple options available: 2, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24\n\
 Phase 2 DH group numbers, multiple options available: 2, 5, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24\n\
-IKE versions, multiple options available: IKEV1, IKEV2")
+IKE versions, multiple options available: IKEV1, IKEV2\n")
 
-    tunnelsParameters()
-    print("\nModifying Tunnel 1...")
-    modifyTunnel(tunnel1)
-    vpnStateValidation()
-
-    sameParameters = input(
-        str("\nDo you want to use the same configuration of tunnel 1 for tunnel 2? y/N: "
-            )).lower()
-    if sameParameters == "y" or sameParameters == "yes":
-        print("\nModifying Tunnel 2...")
-        modifyTunnel(tunnel2)
-    else:
+    try:
         tunnelsParameters()
-        modifyTunnel(tunnel2)
+        print("\nModifying Tunnel 1...")
+        modifyTunnel(tunnel1)
+        vpnStateValidation()
+
+        sameParameters = input(
+            str("\nDo you want to use the same configuration of tunnel 1 for tunnel 2? y/N: "
+                )).lower()
+        if sameParameters == "y" or sameParameters == "yes":
+            print("\nModifying Tunnel 2...")
+            modifyTunnel(tunnel2)
+        else:
+            tunnelsParameters()
+            modifyTunnel(tunnel2)
+    except:
+        print(
+            "\n!!! You entered a wrong parameter for the VPN tunnel configuration. The configuration of both VPN tunnels is stopped !!!\n"
+        )
 
     print("Creating CloudWatch alarms...")
     cwAlarm(tunnel1, "1")
@@ -141,7 +163,8 @@ def tunnelsParameters():
     global Phase1Lifetime, Phase2Lifetime
 
     Phase1Lifetime = int(
-        input("Type the lifetime for phase 1 of the IKE negotiation, in seconds: "))
+        input("\n~~~ S2S VPN tunnel options: ~~~\n\
+Type the lifetime for phase 1 of the IKE negotiation, in seconds: "))
     Phase2Lifetime = int(
         input("Type the lifetime for phase 2 of the IKE negotiation, in seconds: "))
     Phase1EncryptionAlgorithms = str(

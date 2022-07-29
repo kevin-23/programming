@@ -99,9 +99,9 @@ def vpnConnection(nameVPN, staticRoutes):
     except:
         print(
             f"\n!!! {staticRT} is a wrong static route. The configuration of static routes is stopped !!!"
-        )n t
+        )
 
-    print("Creating VPN S2S... Please wait a few minutes.")
+    print("\nCreating VPN S2S... Please wait a few minutes.")
     vpnStateValidation()
 
     print("\n~~~ S2S VPN tunnel options available: ~~~\

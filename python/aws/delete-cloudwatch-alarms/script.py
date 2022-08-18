@@ -37,23 +37,26 @@ def search_insufficient_data_alamrs(prefix):
 
     # Connect to specific service
     client = boto3.client('cloudwatch')
+    paginator = client.get_paginator('describe_alarms')
 
     # Get all alarms with Insufficient Data
-    response = client.describe_alarms(
+    response = paginator.paginate(
         AlarmNamePrefix=prefix,
         StateValue='INSUFFICIENT_DATA',
-        MaxRecords=3
+        PaginationConfig={
+            'MaxItems': 500
+        }
     )
 
-    # Get the instance id, check if the instance exist and delete the CW alarm
-    for x in range(len(response['MetricAlarms'])):
-        for l in range(len(response['MetricAlarms'][x]['Dimensions'])):
-            alarmName = response['MetricAlarms'][x]['AlarmName']
-            dimensionName = response['MetricAlarms'][x]['Dimensions'][l]['Name']
-            if dimensionName == 'InstanceId':
-                dimensionValue = response['MetricAlarms'][x]['Dimensions'][l]['Value']
-                instanceExistsOrNot = check_if_instance_ec2_exists(dimensionValue)
-                if instanceExistsOrNot == True:
-                   delete_cw_alarm(alarmName)
+    for alarm in response:
+        for l in range(len(alarm['MetricAlarms'])):
+            alarmName = alarm['MetricAlarms'][l]['AlarmName']
+            for m in range(len(alarm['MetricAlarms'][l]['Dimensions'])):
+                dimensionName = alarm['MetricAlarms'][l]['Dimensions'][m]['Name']
+                if dimensionName == 'InstanceId':
+                    dimensionValue = alarm['MetricAlarms'][l]['Dimensions'][m]['Value']
+                    instanceExistsOrNot = check_if_instance_ec2_exists(dimensionValue)
+                    if instanceExistsOrNot == True:
+                        delete_cw_alarm(alarmName)
 
 search_insufficient_data_alamrs('Vozy')

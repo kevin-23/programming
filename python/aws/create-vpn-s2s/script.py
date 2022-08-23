@@ -62,7 +62,7 @@ def vpnConnection(nameVPN, staticRoutes):
         response = client.create_vpn_connection(
             CustomerGatewayId=customerGWId,
             Type="ipsec.1",
-            VpnGatewayId="vgw-002e9bcfe5ece2203",
+            VpnGatewayId="vgw-01de3c706bedb0f42",
             Options={"StaticRoutesOnly": True},
             TagSpecifications=[{
                 "ResourceType": "vpn-connection",
@@ -239,9 +239,12 @@ def cwAlarm(ipTunnel, noTunnel):
         AlarmName=f"VOZY-VPN-{nameVPN}-Tunnel {noTunnel}",
         AlarmDescription=f"VOZY-VPN-{nameVPN}-Tunnel {noTunnel}",
         ActionsEnabled=True,
-        OKActions=["arn:aws:sns:us-east-1:808378037958:VPN_OK"],
+        OKActions=[
+            "arn:aws:sns:us-east-1:808378037958:AWSHealth-chatbot2",
+            "arn:aws:sns:us-east-1:808378037958:Slack_infra_Vozy_Ok",
+        ],
         AlarmActions=[
-            "arn:aws:sns:us-east-1:808378037958:VPN_Alarm",
+            "arn:aws:sns:us-east-1:808378037958:AWSHealth-chatbot2",
             "arn:aws:sns:us-east-1:808378037958:Slack_infra_Vozy_Alarm",
         ],
         MetricName="TunnelState",

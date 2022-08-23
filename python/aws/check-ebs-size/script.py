@@ -1,3 +1,10 @@
+#
+# Environment Variables
+# ADDGB = Add GB to current size
+# SIZEOVER = Base size less than or equal to the current size to decide whether to resize.
+# VOLUMEIDS = Ids of EBS volumes
+#
+
 import botocore
 import boto3
 import json

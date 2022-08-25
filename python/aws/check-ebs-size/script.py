@@ -1,11 +1,10 @@
 #
-# Environment Variables
-# ADDGB = Add GB to current size
-# SIZEOVER = Base size less than or equal to the current size to decide whether to resize.
-# VOLUMEIDS = Ids of EBS volumes
+# Environment variables
+# LAMBDA_NAME = Indicate the lambda name
+# INCREASE_THRESHOLD = intenger GB
+# VOLUMEX = {"name": "VOLUMEX", "id": "volume id", "threshold": integer GB, "path": "Script path"}
 #
 
-import botocore
 import boto3
 import json
 import os
@@ -13,24 +12,51 @@ import os
 # Connect to EC2 service
 client = boto3.client('ec2')
 
-# Increase EBS size
-def increase_ebs_size(volumeId, currrentSize):
+def edit_env_value(volumeId, path, name, threshold):
+
+    # Connect to Lambda service
+    client = boto3.client('lambda')
+
+    # Variables
+    add = threshold + os.environ["INCREASE_THRESHOLD"]
+    value = f'{{"name": \"{name}\", "id": \"{volumeId}\", "threshold": {add}, "path": \"{path}\"}}'
+
+    # Modify the value of the environment variable lambda
+    client.update_function_configuration(
+        FunctionName=os.environ['LAMBDA_NAME'],
+        Environment={
+            'Variables': {
+                name: value
+                }
+            }
+        )
+
+# Execute resize script
+def execute_rezise_script(volumeId, instanceId, path, name, threshold):
     try:
-        client.modify_volume(
-            VolumeId=volumeId,
-            Size=currrentSize+os.environ['ADDGB']
-        )  
-        return f'The volume {volumeId} has been successfully updated, its new size is {currrentSize+os.environ["ADDGB"]}'
-    except botocore.exceptions.ClientError as error:
-        if error.response['Error']['Code'] == 'VolumeModificationRateExceeded':
-            return f'The volume {volumeId} was modified less than 6 hours ago'
-        elif error.response['Error']['Code'] == 'IncorrectModificationState':
-            return f'The volume {volumeId} is not in a state available for modification'        
-        else:
-            return 'Unknown error executing the increase_ebs_size function'
+        ssmClient = boto3.client('ssm')
+        ssmClient.send_command(
+            Targets = [
+                {
+                    'Key': 'InstanceIds',
+                    'Values': [
+                        instanceId,
+                    ]
+                },
+            ],
+            DocumentName="AWS-RunShellScript",
+            Parameters={'commands': 
+                [f'sh {path}']
+                }
+            )
+
+        #edit_env_value(volumeId, path, name, threshold)
+        return f'The volume {volumeId} has been successfully updated'
+    except:
+        return 'Error executing the increase_ebs_size function'
         
 # Get the volume parameters
-def get_volume_parameters(volumeId):
+def get_volume_parameters(volumeId, threshold, path, name):
     try:
         response = client.describe_volumes(
             VolumeIds=[
@@ -39,10 +65,11 @@ def get_volume_parameters(volumeId):
         )
         currentSize = response['Volumes'][0]['Size']
         currentState = response['Volumes'][0]['State']
-        
-        if currentSize <= os.environ['SIZEOVER']:
+        instanceId = response['Volumes'][0]['Attachments'][0]['InstanceId']
+
+        if currentSize >= threshold:
             if currentState == 'in-use' or currentState == 'available':
-                return increase_ebs_size(volumeId, currentSize)
+                return execute_rezise_script(volumeId, instanceId, path, name, threshold)
         else:
             return f'Volume size {volumeId} is {currentSize} GB'
 
@@ -50,17 +77,28 @@ def get_volume_parameters(volumeId):
         return f'The volume {volumeId} was not upgrade, check that the volume id exists and that they are separated by comma'
 
 # Main function
-def main(event, context):
+def lambda_handler(event, context):
 
     results = []
-
-    volumeIds = os.environ['VOLUMEIDS']
-    for id in volumeIds.rsplit(","):
-        results.append(get_volume_parameters(id.replace(" ", "")))
-
-    print({
-        'statusCode': 200,
-        'body': json.dumps(results)
-    })
+    envs = []
+    counter = 1
+    
+    try: 
+        while True:
+            envValue = os.environ[f'VOLUME{counter}']
+            envs.append(json.loads(envValue))
+            counter += 1
+    except:
+        pass
         
-main()
+    for resource in envs:
+        results.append(get_volume_parameters
+            (
+                resource['id'],
+                resource['threshold'],
+                resource['path'],
+                resource['name']
+            )
+        )
+        
+    return results

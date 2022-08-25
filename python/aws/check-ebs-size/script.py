@@ -1,35 +1,26 @@
 #
 # Environment variables
-# LAMBDA_NAME = Indicate the lambda name
 # INCREASE_THRESHOLD = intenger GB
 # VOLUMEX = {"name": "VOLUMEX", "id": "volume id", "threshold": integer GB, "path": "Script path"}
 #
 
 import boto3
 import json
-import os
 
 # Connect to EC2 service
 client = boto3.client('ec2')
 
-def edit_env_value(volumeId, path, name, threshold):
+def edit_env_value(name, threshold):
 
-    # Connect to Lambda service
-    client = boto3.client('lambda')
+    # Modify json
+    with open("env.json", "r") as jsonFile:
+        data = json.load(jsonFile)
 
-    # Variables
-    add = threshold + os.environ["INCREASE_THRESHOLD"]
-    value = f'{{"name": \"{name}\", "id": \"{volumeId}\", "threshold": {add}, "path": \"{path}\"}}'
+    increaseThreshold = data['INCREASE_THRESHOLD']
+    data[name]['threshold'] = threshold+increaseThreshold
 
-    # Modify the value of the environment variable lambda
-    client.update_function_configuration(
-        FunctionName=os.environ['LAMBDA_NAME'],
-        Environment={
-            'Variables': {
-                name: value
-                }
-            }
-        )
+    with open("env.json", "w") as jsonFile:
+        json.dump(data, jsonFile)
 
 # Execute resize script
 def execute_rezise_script(volumeId, instanceId, path, name, threshold):
@@ -50,7 +41,7 @@ def execute_rezise_script(volumeId, instanceId, path, name, threshold):
                 }
             )
 
-        #edit_env_value(volumeId, path, name, threshold)
+        edit_env_value(name, threshold)
         return f'The volume {volumeId} has been successfully updated'
     except:
         return 'Error executing the increase_ebs_size function'
@@ -77,7 +68,7 @@ def get_volume_parameters(volumeId, threshold, path, name):
         return f'The volume {volumeId} was not upgrade, check that the volume id exists and that they are separated by comma'
 
 # Main function
-def lambda_handler(event, context):
+def main():
 
     results = []
     envs = []
@@ -102,4 +93,6 @@ def lambda_handler(event, context):
             )
         )
         
-    return results
+    print(results)
+
+main()

@@ -85,8 +85,9 @@ def lambda_handler(event, context):
     
     try: 
         while True:
-            envValue = os.environ[f'VOLUME{counter}']
-            envs.append(json.loads(envValue))
+            with open("env.json", "r") as jsonFile:
+                data = json.load(jsonFile)
+            envs.append(data[f'VOLUME{counter}'])
             counter += 1
     except:
         pass

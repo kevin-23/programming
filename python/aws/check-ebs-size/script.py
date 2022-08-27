@@ -6,6 +6,7 @@
 
 import boto3
 import json
+import os
 
 # Connect to EC2 service
 client = boto3.client('ec2')
@@ -93,6 +94,7 @@ def main():
             )
         )
         
-    print(results)
+    log = f'\n`touch ./log.txt` echo "Last execution: `date` \n{results}" >> ./log.txt'
+    os.system(log)
 
 main()

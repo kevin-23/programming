@@ -8,12 +8,7 @@
                 "ec2:ModifyVolume",
                 "ec2:DescribeVolumeAttribute"
             ],
-            "Resource": [
-                "arn:aws:ec2:us-east-1:420213966676:volume/vol-0698da30034c06aa5",
-                "arn:aws:ec2:us-east-1:420213966676:volume/vol-093060331b52dbef4",
-                "arn:aws:ec2:us-east-1:420213966676:volume/vol-0900141d102d5eb6f",
-                "arn:aws:ec2:us-east-1:420213966676:volume/vol-0524de33519b8e24c"
-            ]
+            "Resource": "*"
         },
         {
             "Sid": "VisualEditor1",

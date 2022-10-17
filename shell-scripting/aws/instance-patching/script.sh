@@ -15,6 +15,7 @@ _region=$3
 _key_ami_delete=$4
 _value_ami_delete=$5
 _amiBackups=()
+_commandId=""
 
 # Checking the AMI status
 function validate_state_ami(){
@@ -23,7 +24,7 @@ function validate_state_ami(){
     for ami in `echo $_amiBackups | tr "," "\n" | sed '/^ *$/d'`
     do
         # Getting the AMI status
-        amiAvailable=$(aws ec2 describe-images \
+        local amiAvailable=$(aws ec2 describe-images \
             --image-ids ${ami} \
             --output json |  jq -r '.Images[].State')
 
@@ -41,6 +42,39 @@ function validate_state_ami(){
     echo $result
 }
 
+# Checking the instance patching status
+function validate_instance_patching(){
+
+    # Local variables
+    local counter=1
+
+    # Getting the instances that are being patched
+    local instancePatching=$(aws ssm list-command-invocations \
+        --command-id $_commandId \
+        --details | jq -r '.CommandInvocations[].InstanceId')
+
+    # Iterate the instances list
+    for instance in $instancePatching
+    do
+        # Getting the four status
+        local instanceState=$(aws ssm list-command-invocations \
+            --command-id $_commandId \
+            --instance-id $instance \
+            --details | jq -r '.CommandInvocations[].Status')
+
+         # Checking if the instance state is different from Success
+        if [[ $instanceState != "Success" ]]
+        then
+            local result="false"
+            echo $result
+            break
+        fi
+    done
+
+    local result="true"
+    echo $result
+}
+
 # List all candidate instances to be patched
 function candidate_instances(){
 
@@ -49,7 +83,7 @@ function candidate_instances(){
     echo -e "Generando backup de instancias EC2 que se van a parchar...\n"
 
     # Describes an instance that has a specific tag
-    instanceIds=$(aws ec2 describe-instances \
+    local instanceIds=$(aws ec2 describe-instances \
         --region ${_region} \
         --filters "Name=tag:${_key},Values=${_value}" \
         --output json | jq -r '.Reservations[].Instances[].InstanceId')
@@ -73,18 +107,58 @@ function candidate_instances(){
     # if it passes all three times, it breaks the validation
     while [ $counter -lt 4 ]
     do  
-
         # Validates the value returned by the validate_state_ami function
         # if the value is true, the AMI are in available state
         sleep 180
-        state=$(validate_state_ami)
+        local state=$(validate_state_ami)
+
+        # Validates the returned value
         if [[ $state == "true" ]]
-        then 
+        then
             echo "AMIs disponibles"
             break
         fi
+
+        # Waiting for the next check
         echo "Las AMIS no está disponibles por el momento..."
         echo -e "Esperando 3 minutos para volver a comprobar el estado de las AMI $counter/3\n"
+        let counter++
+    done
+}
+
+# Function to patch instances
+function patching(){
+
+    # Local variables
+    local counter=1
+
+    # Getting the command id
+    _commandId=$(aws ssm send-command \
+        --region ${_region} \
+        --document-name "AWS-RunPatchBaseline" \
+        --targets Key="tag:${_key}",Values="$_value" \
+        --parameters "Operation=Install" \
+        --timeout-seconds 600 \
+        --output json | jq -r '.Command.CommandId')
+
+    # Checking three times every five minutes if the instances are ok
+    while [ $counter -lt 4 ]
+    do
+        # Validates the value returned by the validate_instance_patching function
+        # if the value is true, the instances were patched
+        sleep 300
+        local state=$(validate_instance_patching)
+
+        # Validates the returned value
+        if [[ $state == "true" ]]
+        then 
+            echo "Todas las instancias se parcharon exitosamente"
+            break
+        fi
+
+        # Waiting for the next check
+        echo "No se han parchado todas las instancias"
+        echo -e "Esperando 5 minutos para volver a comprobar el estado $counter/3\n"
         let counter++
     done
 }

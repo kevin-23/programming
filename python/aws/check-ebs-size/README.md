@@ -2,7 +2,7 @@
 
 <h2>AWS Services Used</h2>
 <ul>
-  <li>AWS Lmabda</li>
+  <li>AWS Lambda</li>
     <ol>
       <li>Use the lambda function to execute the code.</li>
     </ol>

@@ -1,22 +1,21 @@
-import boto3
+import os
 import time
-import json
-
-# Variables
-IPS = []
-ASG_NAME = ''
+import boto3
 
 # Get the ip state
 def state_and_associate_ip(eni):
-
+    
+    # Variables
+    IPS = os.environ['IPS']
+    
     # Connect to EC2 service
     client = boto3.client('ec2')
     
     # Search for an available elastic ip
-    for ip in IPS:
+    for ip in IPS.rsplit(","):
         response = client.describe_addresses(
         PublicIps=[
-            ip,
+            ip.replace("\t", "")
         ]
     )   
         # Validates if the elastic ip is available
@@ -32,7 +31,7 @@ def state_and_associate_ip(eni):
                 NetworkInterfaceId=eni,
             )
             
-            return {"body": f"The IP {ip} was successfully attached to this ENI: {eni}"}
+            return {"body": f"An IP was successfully attached to this ENI: {eni}"}
             
 
 # Get the instance state
@@ -57,29 +56,24 @@ def get_ip_nic(instanceId):
     for x in range(len(response['NetworkInterfaces'])):
         if response['NetworkInterfaces'][x]['Attachment']['DeviceIndex'] == 0:
             eniId = response['NetworkInterfaces'][x]['NetworkInterfaceId']
-            state_and_associate_ip(eniId)
-            break
-            
+            result = state_and_associate_ip(eniId)
+            return result
 
 # Get the instance id
 def lambda_handler(event, context):
 
-    # Connect to ASG service
+    # Connect to EC2 service
     client = boto3.client('autoscaling')
 
-    # Describes the ASG
-    response = client.describe_auto_scaling_groups(
-        AutoScalingGroupNames=[
-            ASG_NAME
-        ]
+    # Describes the ASG activities
+    response = client.describe_scaling_activities(
+    AutoScalingGroupName=os.environ['ASG_NAME'],
+    MaxRecords=1
     )
 
-    # Gets all instance ids
-    instances = response['AutoScalingGroups'][0]['Instances']
-    for x in range (len(instances)):
-        instanceState = instances[x]["LifecycleState"]
-        # Validates if it is necessary to call the function get_ip_nic
-        if instanceState == 'Pending' or instanceState == 'Wait':
-            instanceId = instances[x]["InstanceId"]
-            get_ip_nic(instanceId)
-            return {"body": f"The script was executed successfully"}
+    # Getting the instance id and the activity name
+    text = response['Activities'][0]['Description']
+    text = text.split(" ")
+    if text[0] == "Launching":
+        result = get_ip_nic(text[-1])
+        return result

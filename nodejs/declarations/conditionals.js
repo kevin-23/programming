@@ -42,5 +42,5 @@ if (color === "red") {
 } else if (color === "green") {
     console.log("It is a green color and string type");
 } else {
-    console.log("It is a red color and string type")
+    console.log("It is a red color and string type");
 }
